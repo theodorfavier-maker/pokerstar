@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jetons</title>
+<meta name="description" content="Note les jetons de chaque joueur et vois qui a mis le moins et qui a mis le plus.">
+<meta name="theme-color" content="#1d4a37">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23cf3f3a'/%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%23f3efe4' stroke-width='8' stroke-dasharray='8 12.42'/%3E%3Ccircle cx='32' cy='32' r='15' fill='none' stroke='%23f3efe4' stroke-width='2' stroke-dasharray='3 3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --felt: #1d4a37;
+    --felt-deep: #143426;
+    --felt-light: #27604a;
+    --line: #2f6a52;
+    --ink: #f3efe4;
+    --muted: #a7c3b5;
+    --red: #cf3f3a;
+    --blue: #2f6fd6;
+    --gold: #e8b840;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background-color: var(--felt);
+    background-image: radial-gradient(130% 60% at 50% 0%, var(--felt-light), var(--felt) 60%, var(--felt-deep));
+    color: var(--ink);
+    font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.45;
+  }
+  [hidden] { display: none !important; }
+  .sr {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+  main {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: calc(28px + env(safe-area-inset-top)) 16px calc(110px + env(safe-area-inset-bottom));
+  }
+  h1 {
+    margin: 0 0 20px;
+    font-size: clamp(44px, 13vw, 68px);
+    font-weight: 800;
+    line-height: .95;
+    letter-spacing: -.03em;
+  }
+
+  input, select, button { font: inherit; color: inherit; }
+  input, select {
+    background: var(--felt-deep);
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+  }
+  input { width: 100%; min-width: 0; padding: 11px 12px; }
+  input::placeholder { color: var(--muted); opacity: 1; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* Ajout d'un joueur */
+  .add {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 92px auto;
+    gap: 8px;
+    margin: 0 0 28px;
+  }
+  .btn-add {
+    padding: 0 16px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--gold);
+    color: #2b1f00;
+    font-weight: 700;
+  }
+  .btn-add:active { transform: translateY(1px); }
+  @media (max-width: 359px) {
+    .add { grid-template-columns: minmax(0, 1fr) auto; }
+    #nameIn { grid-column: 1 / -1; }
+  }
+
+  /* Le moins / le plus */
+  .podium {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 0 0 24px;
+    text-align: center;
+  }
+  .spot p { margin: 0; }
+  .chip {
+    --c: var(--blue);
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 104px;
+    height: 104px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    background: repeating-conic-gradient(from -6deg, var(--ink) 0deg 12deg, var(--c) 12deg 45deg);
+    box-shadow: 0 4px 0 rgba(0,0,0,.35), 0 10px 18px rgba(0,0,0,.25);
+  }
+  .high .chip { --c: var(--red); }
+  .chip::before {
+    content: "";
+    position: absolute;
+    inset: 13px;
+    border-radius: 50%;
+    background: var(--c);
+    border: 2px dashed rgba(255,255,255,.6);
+  }
+  .chip span {
+    position: relative;
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 0 rgba(0,0,0,.25);
+  }
+  .chip.bump { animation: bump .5s cubic-bezier(.3, 1.4, .5, 1); }
+  @keyframes bump { from { transform: rotate(-25deg) scale(.92); } to { transform: none; } }
+  .spot-label { color: var(--muted); font-size: 15px; }
+  .spot-names {
+    margin-top: 2px !important;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .note { margin: 0 0 24px; text-align: center; color: var(--muted); }
+  #tie { color: var(--ink); font-weight: 600; }
+  .empty {
+    margin: 0;
+    padding: 28px 20px;
+    text-align: center;
+    color: var(--muted);
+    border: 1.5px dashed var(--line);
+    border-radius: 14px;
+  }
+
+  /* Tableau */
+  .board-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 8px;
+  }
+  .total { margin: 0; color: var(--muted); font-size: 15px; }
+  .sort { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 15px; }
+  .sort select { padding: 6px 8px; border-radius: 8px; color: var(--ink); font-size: 16px; }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th {
+    padding: 8px 6px;
+    text-align: left;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 1.5px solid var(--line);
+  }
+  td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th.c-tok { text-align: center; }
+  .c-tok { width: 148px; }
+  .c-del { width: 44px; text-align: right; }
+
+  .name-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .dot {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+  }
+  .is-min .dot { background: var(--blue); border-color: var(--ink); }
+  .is-max .dot { background: var(--red); border-color: var(--ink); }
+  .is-min td { background: rgba(47,111,214,.16); }
+  .is-max td { background: rgba(207,63,58,.18); }
+
+  .name {
+    padding: 8px 6px;
+    background: transparent;
+    border-color: transparent;
+    font-weight: 600;
+    text-overflow: ellipsis;
+  }
+  .name:hover { border-color: var(--line); }
+  .name:focus { background: var(--felt-deep); border-color: var(--line); }
+
+  .stepper { display: flex; align-items: center; justify-content: center; gap: 4px; }
+  .step {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1.5px solid var(--line);
+    border-radius: 50%;
+    background: transparent;
+    font-size: 20px;
+    line-height: 1;
+  }
+  .step:hover { background: var(--felt-light); }
+  .step:active { background: var(--felt-deep); }
+  .tok {
+    width: 54px;
+    padding: 8px 4px;
+    text-align: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .del {
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+  }
+  .del:hover { color: var(--ink); background: rgba(0,0,0,.2); }
+  tr.new td { animation: flash 1.4s ease-out; }
+  @keyframes flash { from { background: rgba(232,184,64,.38); } }
+
+  .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 28px; }
+  .ghost {
+    padding: 10px 16px;
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .ghost:hover { color: var(--ink); border-color: var(--muted); }
+
+  /* Message avec « Annuler » */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: calc(100% - 32px);
+    padding: 8px 8px 8px 16px;
+    border-radius: 12px;
+    background: var(--ink);
+    color: var(--felt-deep);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    font-size: 15px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, 16px);
+    transition: opacity .2s, transform .2s, visibility 0s .2s;
+  }
+  .toast.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 0);
+    transition: opacity .2s, transform .2s;
+  }
+  .toast button {
+    flex: none;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--felt);
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Jetons</h1>
+
+  <form class="add" id="addForm" autocomplete="off">
+    <label class="sr" for="nameIn">Prénom</label>
+    <input id="nameIn" placeholder="Prénom" maxlength="30" required enterkeyhint="next">
+    <label class="sr" for="tokIn">Jetons</label>
+    <input id="tokIn" type="number" inputmode="numeric" min="0" step="1" placeholder="Jetons" enterkeyhint="done">
+    <button class="btn-add" type="submit">Ajouter</button>
+  </form>
+
+  <section class="podium" id="podium" hidden aria-live="polite">
+    <div class="spot low">
+      <div class="chip" id="minChip"><span id="minVal"></span></div>
+      <p class="spot-label" id="minLabel">A mis le moins</p>
+      <p class="spot-names" id="minNames"></p>
+    </div>
+    <div class="spot high">
+      <div class="chip" id="maxChip"><span id="maxVal"></span></div>
+      <p class="spot-label" id="maxLabel">A mis le plus</p>
+      <p class="spot-names" id="maxNames"></p>
+    </div>
+  </section>
+  <p class="note" id="tie" hidden aria-live="polite"></p>
+  <p class="note" id="hint" hidden>Ajoute un deuxième joueur pour voir qui a mis le moins et qui a mis le plus.</p>
+
+  <p class="empty" id="empty">Aucun joueur pour l'instant. Écris un prénom et ses jetons, puis appuie sur Ajouter.</p>
+
+  <section id="board" hidden>
+    <div class="board-head">
+      <p class="total" id="total"></p>
+      <label class="sort">Ordre
+        <select id="sort">
+          <option value="added">d'ajout</option>
+          <option value="desc">du plus au moins</option>
+          <option value="asc">du moins au plus</option>
+        </select>
+      </label>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Prénom</th>
+          <th scope="col" class="c-tok">Jetons</th>
+          <th scope="col" class="c-del"><span class="sr">Retirer</span></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+
+  <div class="actions" id="actions" hidden>
+    <button type="button" class="ghost" id="zeroBtn">Remettre les jetons à zéro</button>
+    <button type="button" class="ghost" id="clearBtn">Effacer le tableau</button>
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span id="toastMsg"></span>
+  <button type="button" id="toastBtn">Annuler</button>
+</div>
+
+<script>
+(() => {
+  const KEY = 'jetons-joueurs-v1';
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    form: $('addForm'), nameIn: $('nameIn'), tokIn: $('tokIn'),
+    podium: $('podium'), minChip: $('minChip'), maxChip: $('maxChip'),
+    minVal: $('minVal'), maxVal: $('maxVal'), minLabel: $('minLabel'), maxLabel: $('maxLabel'),
+    minNames: $('minNames'), maxNames: $('maxNames'),
+    tie: $('tie'), hint: $('hint'), empty: $('empty'),
+    board: $('board'), total: $('total'), sort: $('sort'), tbody: $('rows'),
+    actions: $('actions'), zero: $('zeroBtn'), clear: $('clearBtn'),
+    toast: $('toast'), toastMsg: $('toastMsg'), toastBtn: $('toastBtn')
+  };
+
+  const nf = new Intl.NumberFormat('fr-FR');
+  const fmt = (n) => nf.format(n);
+  const plural = (n, word) => `${fmt(n)} ${word}${n > 1 ? 's' : ''}`;
+
+  let state = { players: [], sort: 'added', nextId: 1 };
+  let sortTimer, toastTimer;
+
+  // ---------- Données ----------
+  function clampTokens(v) {
+    const n = Math.floor(Number(v));
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 999999999) : 0;
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (!s || !Array.isArray(s.players)) return;
+      const players = s.players
+        .filter((p) => p && typeof p.name === 'string')
+        .map((p, i) => ({ id: i + 1, name: p.name.slice(0, 30), tokens: clampTokens(p.tokens) }));
+      state = {
+        players,
+        sort: ['added', 'desc', 'asc'].includes(s.sort) ? s.sort : 'added',
+        nextId: players.length + 1
+      };
+    } catch (e) { /* stockage indisponible : on repart d'un tableau vide */ }
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* rien à faire */ }
+  }
+
+  const byId = (id) => state.players.find((p) => p.id === id);
+
+  function stats() {
+    const ps = state.players;
+    let min = Infinity, max = -Infinity, total = 0;
+    for (const p of ps) {
+      if (p.tokens < min) min = p.tokens;
+      if (p.tokens > max) max = p.tokens;
+      total += p.tokens;
+    }
+    const label = (p) => p.name.trim() || 'Sans nom';
+    return {
+      n: ps.length, min, max, total,
+      low: ps.filter((p) => p.tokens === min).map(label),
+      high: ps.filter((p) => p.tokens === max).map(label)
+    };
+  }
+
+  function joinNames(list) {
+    if (list.length < 2) return list[0] || '';
+    return list.slice(0, -1).join(', ') + ' et ' + list[list.length - 1];
+  }
+
+  // ---------- Affichage ----------
+  function setChip(chip, valEl, value) {
+    const text = fmt(value);
+    if (valEl.textContent === text) return;
+    valEl.textContent = text;
+    const len = text.length;
+    valEl.style.fontSize = len <= 3 ? '30px' : len <= 5 ? '23px' : len <= 7 ? '18px' : '14px';
+    chip.classList.remove('bump');
+    void chip.offsetWidth;
+    chip.classList.add('bump');
+  }
+
+  function updateSummary() {
+    const s = stats();
+    const has = s.n > 0;
+    const tie = s.n >= 2 && s.min === s.max;
+    const compare = s.n >= 2 && !tie;
+
+    els.empty.hidden = has;
+    els.board.hidden = !has;
+    els.actions.hidden = !has;
+    els.hint.hidden = s.n !== 1;
+    els.tie.hidden = !tie;
+    els.podium.hidden = !compare;
+
+    if (has) els.total.textContent = `${plural(s.total, 'jeton')} au total, ${plural(s.n, 'joueur')}`;
+    if (tie) els.tie.textContent = `Égalité : tout le monde a mis ${plural(s.min, 'jeton')}.`;
+    if (compare) {
+      setChip(els.minChip, els.minVal, s.min);
+      setChip(els.maxChip, els.maxVal, s.max);
+      els.minLabel.textContent = s.low.length > 1 ? 'Ont mis le moins' : 'A mis le moins';
+      els.maxLabel.textContent = s.high.length > 1 ? 'Ont mis le plus' : 'A mis le plus';
+      els.minNames.textContent = joinNames(s.low);
+      els.maxNames.textContent = joinNames(s.high);
+    }
+
+    for (const tr of els.tbody.rows) {
+      const p = byId(Number(tr.dataset.id));
+      tr.classList.toggle('is-min', !!(compare && p && p.tokens === s.min));
+      tr.classList.toggle('is-max', !!(compare && p && p.tokens === s.max));
+    }
+  }
+
+  function sortedPlayers() {
+    const ps = state.players.slice();
+    if (state.sort === 'desc') ps.sort((a, b) => b.tokens - a.tokens || a.id - b.id);
+    if (state.sort === 'asc') ps.sort((a, b) => a.tokens - b.tokens || a.id - b.id);
+    return ps;
+  }
+
+  function render(flashId) {
+    clearTimeout(sortTimer);
+    const active = document.activeElement;
+    const focusKey = active && els.tbody.contains(active) ? active.dataset.focus : null;
+
+    els.tbody.replaceChildren(...sortedPlayers().map(rowEl));
+
+    if (focusKey) {
+      const el = els.tbody.querySelector(`[data-focus="${focusKey}"]`);
+      if (el) el.focus({ preventScroll: true });
+    }
+    if (flashId != null) {
+      const tr = els.tbody.querySelector(`tr[data-id="${flashId}"]`);
+      if (tr) tr.classList.add('new');
+    }
+    els.sort.value = state.sort;
+    updateSummary();
+  }
+
+  // Quand le tableau est trié, on attend une petite pause avant de réordonner,
+  // pour que la ligne ne saute pas pendant qu'on appuie sur + ou −.
+  function settleOrder() {
+    if (state.sort === 'added') return;
+    clearTimeout(sortTimer);
+    sortTimer = setTimeout(() => render(), 900);
+  }
+
+  function button(cls, label, content, focusKey) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = cls;
+    b.setAttribute('aria-label', label);
+    b.dataset.focus = focusKey;
+    b.append(content);
+    return b;
+  }
+
+  function xIcon() {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '18');
+    svg.setAttribute('height', '18');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M6 6l12 12M18 6L6 18');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '2.2');
+    path.setAttribute('stroke-linecap', 'round');
+    svg.append(path);
+    return svg;
+  }
+
+  function rowEl(p) {
+    const tr = document.createElement('tr');
+    tr.dataset.id = p.id;
+
+    // Prénom (modifiable)
+    const tdName = document.createElement('td');
+    const cell = document.createElement('div');
+    cell.className = 'name-cell';
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.setAttribute('aria-hidden', 'true');
+    const name = document.createElement('input');
+    name.className = 'name';
+    name.value = p.name;
+    name.maxLength = 30;
+    name.autocomplete = 'off';
+    name.setAttribute('aria-label', 'Prénom');
+    name.dataset.focus = 'name-' + p.id;
+    name.addEventListener('input', () => { p.name = name.value; save(); updateSummary(); });
+    name.addEventListener('change', () => {
+      const v = name.value.trim() || 'Sans nom';
+      p.name = v; name.value = v; save(); updateSummary();
+    });
+    cell.append(dot, name);
+    tdName.append(cell);
+
+    // Jetons : − [nombre] +
+    const tdTok = document.createElement('td');
+    tdTok.className = 'c-tok';
+    const stepper = document.createElement('div');
+    stepper.className = 'stepper';
+    const tok = document.createElement('input');
+    tok.type = 'number';
+    tok.inputMode = 'numeric';
+    tok.min = '0';
+    tok.step = '1';
+    tok.className = 'tok';
+    tok.value = p.tokens;
+    tok.setAttribute('aria-label', 'Jetons');
+    tok.dataset.focus = 'tok-' + p.id;
+    tok.addEventListener('focus', () => { try { tok.select(); } catch (e) {} });
+    tok.addEventListener('input', () => {
+      if (tok.value === '') return;
+      p.tokens = clampTokens(tok.value); save(); updateSummary();
+    });
+    tok.addEventListener('change', () => {
+      p.tokens = clampTokens(tok.value); tok.value = p.tokens;
+      save(); updateSummary(); settleOrder();
+    });
+    const step = (d) => {
+      p.tokens = clampTokens(p.tokens + d); tok.value = p.tokens;
+      save(); updateSummary(); settleOrder();
+    };
+    const minus = button('step', 'Un jeton de moins', '−', 'minus-' + p.id);
+    const plus = button('step', 'Un jeton de plus', '+', 'plus-' + p.id);
+    minus.addEventListener('click', () => step(-1));
+    plus.addEventListener('click', () => step(1));
+    stepper.append(minus, tok, plus);
+    tdTok.append(stepper);
+
+    // Retirer
+    const tdDel = document.createElement('td');
+    tdDel.className = 'c-del';
+    const del = button('del', 'Retirer ce joueur', xIcon(), 'del-' + p.id);
+    del.addEventListener('click', () => removePlayer(p));
+    tdDel.append(del);
+
+    tr.append(tdName, tdTok, tdDel);
+    return tr;
+  }
+
+  // ---------- Actions ----------
+  function showToast(msg, undo) {
+    els.toastMsg.textContent = msg;
+    els.toastBtn.onclick = () => { hideToast(); undo(); };
+    els.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 6000);
+  }
+  function hideToast() {
+    clearTimeout(toastTimer);
+    els.toast.classList.remove('show');
+  }
+
+  function removePlayer(p) {
+    const idx = state.players.indexOf(p);
+    if (idx < 0) return;
+    state.players.splice(idx, 1);
+    save(); render();
+    showToast(`${p.name.trim() || 'Ce joueur'} n'est plus dans le tableau`, () => {
+      state.players.splice(Math.min(idx, state.players.length), 0, p);
+      save(); render(p.id);
+    });
+  }
+
+  els.nameIn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && els.nameIn.value.trim()) {
+      e.preventDefault();
+      els.tokIn.focus();
+    }
+  });
+
+  els.form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = els.nameIn.value.trim();
+    if (!name) { els.nameIn.focus(); return; }
+    const p = { id: state.nextId++, name: name.slice(0, 30), tokens: clampTokens(els.tokIn.value) };
+    state.players.push(p);
+    save(); render(p.id);
+    els.form.reset();
+    els.nameIn.focus();
+  });
+
+  els.sort.addEventListener('change', () => {
+    state.sort = els.sort.value;
+    save(); render();
+  });
+
+  els.zero.addEventListener('click', () => {
+    const before = state.players.map((p) => [p, p.tokens]);
+    state.players.forEach((p) => { p.tokens = 0; });
+    save(); render();
+    showToast('Jetons remis à zéro', () => {
+      before.forEach(([p, t]) => { p.tokens = t; });
+      save(); render();
+    });
+  });
+
+  els.clear.addEventListener('click', () => {
+    const before = state.players.slice();
+    state.players = [];
+    save(); render();
+    showToast('Tableau effacé', () => {
+      state.players = before;
+      save(); render();
+    });
+  });
+
+  load();
+  render();
+})();
+</script>
+</body>
+</html>
